@@ -1,0 +1,449 @@
+TATA TWITTER ANALYTICS
+
+```{r}
+#install.packages("rtweet")
+library(rtweet)
+library(dplyr)
+library(tidyr)
+#install.packages("tidytext",dependencies = TRUE)
+library(tidytext)
+library(ggplot2)
+#install.packages("qdap")
+#install.packages("qdapRegex")
+```
+Topic Selection: We have selected "TATA" as our Brand for doing Twitter analytics. We extract tweets in English covering major TATA brands with retweets disabled. We also apply date and character format conversions as appropriate.
+
+```{r}
+library(rtweet)
+
+setwd('C:/Users/Karthik/Documents/Lakshmi - Back up docs/Learning/Data Analytics/BABI/Sessions/S15/WSMA Assgn');
+
+tweetTATA =search_tweets("#Tata OR #Tatadocomo OR #tata_comm OR #TataMotors OR #tatatrusts OR #TataCompanies OR #TataSky OR #TataAIA_Life OR #TCS OR #TataCLiQ OR #tata_housing OR #TATAAIGIndia OR #TataPower OR #Tatacapital#Tata OR #Tatadocomo OR #tata_comm OR #TataMotors OR #tatatrusts OR #TataCompanies OR #TataSky OR #TataAIA_Life OR #TCS OR #TataCLiQ OR #tata_housing OR #TATAAIGIndia OR #TataPower OR #Tatacapital",n=100000,lang='en',include_rts = F,retryonratelimit = F)
+
+dim(tweetTATA)
+
+View(tweetTATA)
+
+names(tweetTATA)
+
+saveRDS(tweetTATA, "tweet_tata.rds")
+
+tweets_tata = readRDS("tweet_tata.rds")
+
+library(dplyr)
+
+library(lubridate)
+tweetTATA$date <- date(tweetTATA$created_at)
+tweetTATA$hour <- hour(tweetTATA$created_at)
+tweetTATA$text <- as.character(tweetTATA$text)
+#str(tweets_tata)
+```
+Exploratory Data Analysis
+```{r}
+library(ggplot2)
+
+ggplot(tweetTATA, aes(x = date)) + 
+  geom_density()
+ggplot(tweetTATA, aes(x = hour)) + 
+  geom_density()
+
+```
+Summary:
+There are around 1272 (as of 8.30 PM Jul 5) tweets in the past 1 week (Jun 26-Jul 5)
+NO of tweets are very high on Jul 2 and Jul 3
+Tweets are at peak from 3 AM - 12.30 PM
+
+```{r}
+#Data Statistics
+#Line counts
+length(tweetTATA$text)
+#word count
+library(stringi)
+sum(stri_count_words(tweetTATA$text))
+```
+As of 8.30 PM Jul 5
+Line count: 1272
+Word count: 35343
+
+Data Cleaning
+We clean up the extract by removing numbers,punctuations,symbols, hyphens, and URLs.
+We also convert to lowercase. We follow this with the removal of standard stopwords and followed by custom stopwords where the words that come as part of the search tweets # tags are also removed. We kept this open so as to come back through an iterative process of analyzing the frequency and including more into the custom stopwords.
+
+We then spot the pairs of words or bigrams that occur together.
+
+```{r}
+
+#install.packages("quanteda")
+library(quanteda)
+# Tokenize descriptions
+tweettokens=tokens(tweets_tata$text,what="word",
+                    remove_numbers=TRUE,
+                    remove_punct=TRUE,
+                    remove_symbols=TRUE,
+                    split_hyphens=TRUE,
+                    remove_url = T)
+
+
+# Lowercase the tokens
+tweettokens=tokens_tolower(tweettokens)
+
+
+# remove stop words and unnecessary words
+tweettokens=tokens_select(tweettokens, stopwords(),selection = "remove")
+custom_stop <- c("tata","tcs","tatamotors","tatapower","tatasky","can", "amp", "one", "will", "just", "many", "new", "know", "also", "need", "may", "now", "rs",
+                 "get", "s", "t", "m", "re", "via", "get", "k", "us","stayhome")
+
+tweettokens=tokens_remove(tweettokens,custom_stop)
+
+(n.tweet <- length(tweets_tata))
+
+tweettokens2=tokens_ngrams(tweettokens,n=2)
+
+# Creating a bag of words
+tweettokensdfm=dfm(tweettokens2,tolower = FALSE)
+
+#identify most freq bigrams
+topfeatures(tweettokensdfm)
+
+```
+Inference: We see that the following pairs of words occur more frequently in the tweets. 
+
+3 Major topics are in discussion:
+1. IT Services - #infy_#tcs and #tcs_#infosys come as part of discussions on competition in the IT sector.
+2. Banks - In terms of specific stocks, the top Nifty constituents are HDFC Bank Ltd. 10.99%, Reliance Industries Ltd. 8.93%, Housing Development Finance Corporation 7.85%, ICICI Bank Ltd. 5.87%, Infosys Ltd
+3. Stocks/Trading -#stockmarket_#stock2020, #nifty_#sensex, #nifty50_#sensex and #nifty_#banknifty indicate the discussions on the dynamics in the stock market.
+
+We further spot words that occurs as sets of 3 or trigrams.
+```{r}
+#Create bi-grams
+tweettokens3=tokens_ngrams(tweettokens,n=3)
+
+# Creating a bag of words
+tweettokensdfm3=dfm(tweettokens3,tolower = FALSE)
+
+#identify most freq bigrams
+topfeatures(tweettokensdfm3)
+
+```
+Inference: We see competetitor oriented discussions in #jio_#ril_#reliance,  #ril_#reliance_#relianceindustries and #itc_#hul_#fmcg where TATA has a presence, TATA Docomo and FMCG products of TATA being some examples.
+
+#icicibank_#kotakbank_#itc#HUL including TATA - These firms are having high market capitalization
+
+```{r}
+library(qdapRegex)
+twt_txt_url <- rm_twitter_url(tweets_tata$text)
+twt_txt_chrs  <- gsub("[^A-Za-z0-9]", " ", twt_txt_url)
+
+```
+
+We create a corpus from the data
+```{r}
+
+library(tm)
+corpus<- Corpus(VectorSource(twt_txt_chrs)) 
+corpus1<- Corpus(VectorSource(twt_txt_chrs)) 
+
+writeLines(strwrap(corpus1[[100]]$content,50))
+writeLines(strwrap(corpus[[100]]$content,50))
+```
+
+Removal of Whitespace from the corpus
+
+```{r}
+#triming extra spaces
+corpus_sp = tm_map(corpus, stripWhitespace)
+writeLines(strwrap(corpus_sp[[100]]$content,50))
+```
+
+Removal of User Names from the corpus
+```{r}
+#Remove User names
+removeUsername <- function(x) gsub("@[^[:space:]]*", "", x)  
+corpus_un <- tm_map(corpus_sp, content_transformer(removeUsername))
+writeLines(strwrap(corpus_un[[100]]$content,50))
+
+```
+
+```{r}
+corpus_lwr <- tm_map(corpus_un, tolower) 
+writeLines(strwrap(corpus_lwr[[100]]$content,50))
+
+```
+
+Removal of standard English stopwords and Custom Stopwords
+```{r}
+#stopword treatment
+corpus_st = tm_map(corpus_lwr, removeWords, stopwords('english'))
+
+writeLines(strwrap(corpus_st[[100]]$content,50))
+
+```
+```{r}
+#Custom Stop words
+# Create a vector of custom stop words
+custom_stop <- c("tata","tcs","tatamotors","tatapower","tatasky","can", "amp", "one", "will", "just", "many", "new", "know", "also", "need", "may", "now", "rs",
+                 "get", "s", "t", "m", "re", "via", "get", "k", "us","stayhome")
+
+# Extract term frequency
+#install.packages("qdap")
+
+
+library(qdap)
+#library(tm)
+library(RWeka)
+
+corpus_final <- tm_map(corpus_st, removeWords,custom_stop)
+writeLines(strwrap(corpus_final[[100]]$content,50))
+
+```
+
+```{r}
+removeSingle <- function(x) gsub(" . ", " ", x)   
+corpus_ref <- tm_map(corpus_final, content_transformer(removeSingle))
+## Warning in tm_map.SimpleCorpus(corpus, content_transformer(removeSingle)):
+## transformation drops documents
+writeLines(strwrap(corpus_ref[[100]]$content,50))
+```
+```{r}
+term_count_clean <- freq_terms(corpus_ref, 20)
+term_count_clean
+
+
+# Create a bar plot of frequent terms
+library(ggplot2)
+
+# Create a subset dataframe
+term50 <- subset(term_count_clean, FREQ > 30)
+
+# Create a bar plot
+ggplot(term50, aes(x = reorder(WORD,  -FREQ),  y = FREQ)) +
+  geom_bar(stat = "identity", fill = "blue") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+Most frequently used words - Inferences:
+NIFTY,Buy,Stock,stockmarket,Banknifty,trading - All refers to stock purchase and trading.
+bts,Chimmy -Tata (V), Shooky (Suga), Cooky (Jungkook), Koya (Rap Monster), Chimmy (Jimin), RJ (Jin), Mang (J-Hope). BTS band members cute keychain, a must have for all BTS fans. The characters were created by the BTS members themselves.
+India - As TATA is Indian based company,situation in India could be discussed about.
+Competitor companies like Reliance, Infosys are also much talked about.
+TATACliq - Due to COVID 19 situation,ecommerce industry has gained prominence. There are poor reviews with respect to TATACliq customer service which needs to be focussed upon.
+Service - Customer service is also major point of discussion
+
+```{r}
+# Create a word cloud based on min frequency
+library(wordcloud)
+#wordcloud(corpus_ref, min.freq = 200, colors = "red", 
+         # scale = c(5,0.5), random.order = FALSE)
+
+# Create a colorful word cloud 
+library(RColorBrewer)
+wordcloud(corpus_ref, max.words = 100, 
+          colors = brewer.pal(6,"Dark2"), scale = c(2.5,.5),
+          random.order = FALSE)
+
+```
+Inferences
+Electricity
+Mang,Cooky,Koya,Shooky,Chimmy,RJ - These are the characters built by BTS toy company.This is one of the favorite topics.
+Steel
+Sales
+help
+Tata car sales - Has been increased especially passenger & commercial vehicles after acquiring landrover.
+Tatasky - 
+
+```{r}
+library(tm)
+
+
+tdm<- TermDocumentMatrix(corpus, control= list(wordLengths= c(1, Inf)))
+
+tdm
+
+inspect(tdm)
+
+inspect(tdm[1:10,1:7])
+
+```
+
+
+Find the terms used most frequently
+
+```{r}
+library(ggplot2)
+dtf <- DocumentTermMatrix(corpus)
+freq.terms <- findFreqTerms(tdm, lowfreq = 25)
+term.freq <- rowSums(as.matrix(tdm))
+term.freq <- subset(term.freq, term.freq >25)
+df <- data.frame(term = names(term.freq), freq= term.freq)
+```
+
+
+```{r}
+
+(freq.terms <- findFreqTerms(tdm, lowfreq = 10))
+
+```
+
+```{r}
+term.freq <- rowSums(as.matrix(tdm))
+term.freq <- subset(term.freq, term.freq > 10)
+df1 <- data.frame(term = names(term.freq), freq= term.freq)
+(freq.terms <- findFreqTerms(tdm, lowfreq = 55))
+
+```
+
+```{r}
+term.freq <- rowSums(as.matrix(tdm))
+term.freq <- subset(term.freq, term.freq > 55)
+df2 <- data.frame(term = names(term.freq), freq= term.freq)
+
+(freq.terms <- findFreqTerms(tdm, lowfreq = 85))
+```
+
+
+
+```{r}
+term.freq <- rowSums(as.matrix(tdm))
+term.freq <- subset(term.freq, term.freq > 85)
+df3 <- data.frame(term = names(term.freq), freq= term.freq)
+```
+
+
+
+```{r}
+barplot(df2[1:10,]$freq~df3[1:10,]$term, las = 2, names.arg = df2[1:10,]$word,
+        col ="lightblue", main ="Most frequent words",
+        ylab = "Word frequencies", xlab = "Terms")
+
+```
+
+```{r}
+library(wordcloud)
+library(reshape2)
+# take all the phrases
+m <- as.matrix(tdm)
+# calculate the frequency of words and sort it by frequency
+word.freq <- sort(rowSums(m), decreasing = F)
+docs1 <-tibble(phrases =names(word.freq))
+
+# add an id, from 1 to n
+docs1$ID <- row.names(docs1)
+
+# split all the words
+tidy_docs <- docs1 %>% unnest_tokens(word, phrases)
+
+#create now the cloud: a pair of warnings, because you do not have negative words and it is joining by word(correct)
+tidy_docs %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("gray20", "gray80"),
+                   max.words = 25)
+
+```
+
+Inferences:
+
+Lot of negative sentiment is observed with respect of customer service and cost.
+
+word association
+ 
+```{r}
+list1<- findAssocs(tdm, "means", 0.2)
+corrdf1 <- t(data.frame(t(sapply(list1,c))))
+corrdf1
+```
+
+
+```{r}
+barplot(t(as.matrix(corrdf1)), beside=TRUE,xlab = "Words",ylab = "Corr",col = "blue",main = "Tata",border = "black")
+```
+Inferences;
+
+Clearly there is a huge displeasure with respect to the services rendered by Tatasky.
+
+```{r}
+
+list1<- findAssocs(tdm, "believe", 0.2)
+corrdf1 <- t(data.frame(t(sapply(list1,c))))
+corrdf1
+
+```
+
+```{r}
+barplot(t(as.matrix(corrdf1)), beside=TRUE,xlab = "Words",ylab = "Corr",col = "yellow",main = "Beleive",border = "black")
+```
+
+
+```{r}
+list1<- findAssocs(tdm, "crazy", 0.2)
+corrdf1 <- t(data.frame(t(sapply(list1,c))))
+corrdf1
+```
+
+Dendogram:
+
+```{r}
+# remove sparse terms
+tdm2 <- removeSparseTerms(tdm, sparse = 0.95)
+m2 <- as.matrix(tdm2)
+# cluster terms
+distMatrix <- dist(scale(m2))
+fit <- hclust(distMatrix, method = "ward")
+
+plot(fit)
+```
+
+```{r}
+
+#install.packages("syuzhet")
+library(syuzhet)
+
+mysentiment<-get_nrc_sentiment((tweets_tata$text))
+
+# Get the sentiment score for each emotion
+mysentiment.positive =sum(mysentiment$positive)
+mysentiment.anger =sum(mysentiment$anger)
+mysentiment.anticipation =sum(mysentiment$anticipation)
+mysentiment.disgust =sum(mysentiment$disgust)
+mysentiment.fear =sum(mysentiment$fear)
+mysentiment.joy =sum(mysentiment$joy)
+mysentiment.sadness =sum(mysentiment$sadness)
+mysentiment.surprise =sum(mysentiment$surprise)
+mysentiment.trust =sum(mysentiment$trust)
+mysentiment.negative =sum(mysentiment$negative)
+
+# Create the bar chart
+yAxis <- c(mysentiment.positive,
+           + mysentiment.anger,
+           + mysentiment.anticipation,
+           + mysentiment.disgust,
+           + mysentiment.fear,
+           + mysentiment.joy,
+           + mysentiment.sadness,
+           + mysentiment.surprise,
+           + mysentiment.trust,
+           + mysentiment.negative)
+
+xAxis <- c("Positive","Anger","Anticipation","Disgust","Fear","Joy","Sadness",
+           "Surprise","Trust","Negative")
+colors <- c("green","red","blue","orange","red","green","orange","blue","green","red")
+yRange <- range(0,yAxis)
+barplot(yAxis, names.arg = xAxis, 
+        xlab = "Emotional valence", ylab = "Score", main = "Twitter sentiment", 
+        sub = "Tata", col = colors, border = "black", xpd = F, ylim = yRange,
+        axisnames = T, cex.axis = 0.8, cex.sub = 0.8, col.sub = "blue")
+```
+Inferences:
+
+Positive - Score is high reflecting that the customers are satisifed with TATA. Scoores of the below attributes also support the same.
+Trust
+Joy
+Anticipation
+Surprise
+
+Negative - Customer dissatisfication with respect to ecommerce and TATASky services are to be noted which is impacting the brand value. Below attributes are signifying the same.
+Anger
+Disgust
+Fear
+Sadness
